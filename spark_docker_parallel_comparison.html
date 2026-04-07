@@ -1,0 +1,1582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Traditional Parallel vs Apache Spark in Docker</title>
+  <style>
+    :root {
+      --bg: #07111f;
+      --panel: rgba(10, 22, 39, 0.88);
+      --panel-2: rgba(15, 30, 52, 0.88);
+      --border: rgba(130, 170, 255, 0.18);
+      --text: #e7f0ff;
+      --muted: #a9b7d3;
+      --accent: #5dd6ff;
+      --accent-2: #7cf29a;
+      --accent-3: #ffc857;
+      --danger: #ff7b7b;
+      --normal: #70b7ff;
+      --spark: #ffb347;
+      --shadow: 0 16px 44px rgba(0,0,0,0.26);
+      --radius: 22px;
+    }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at top left, rgba(70, 130, 220, 0.22), transparent 28%),
+        radial-gradient(circle at top right, rgba(255, 165, 0, 0.16), transparent 22%),
+        linear-gradient(180deg, #06101d 0%, #09182c 42%, #07111f 100%);
+      min-height: 100vh;
+      overflow-x: hidden;
+    }
+
+    .shell {
+      max-width: 1500px;
+      margin: 0 auto;
+      padding: 28px 22px 42px;
+    }
+
+    .hero {
+      background: linear-gradient(135deg, rgba(12, 28, 50, 0.94), rgba(11, 23, 42, 0.88));
+      border: 1px solid var(--border);
+      border-radius: 28px;
+      padding: 28px;
+      box-shadow: var(--shadow);
+      position: relative;
+      overflow: hidden;
+    }
+    .hero::before, .hero::after {
+      content: "";
+      position: absolute;
+      inset: auto;
+      width: 280px;
+      height: 280px;
+      border-radius: 50%;
+      filter: blur(50px);
+      opacity: 0.22;
+      pointer-events: none;
+    }
+    .hero::before {
+      right: -60px;
+      top: -70px;
+      background: #5dd6ff;
+    }
+    .hero::after {
+      left: -40px;
+      bottom: -90px;
+      background: #ffb347;
+    }
+
+    .eyebrow {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.06);
+      color: var(--accent-2);
+      border: 1px solid rgba(255,255,255,0.08);
+      font-size: 0.86rem;
+      letter-spacing: 0.02em;
+      margin-bottom: 14px;
+    }
+    h1 {
+      margin: 0 0 10px;
+      font-size: clamp(2rem, 4vw, 3.45rem);
+      line-height: 1.08;
+    }
+    .hero p {
+      margin: 0;
+      max-width: 1050px;
+      color: var(--muted);
+      font-size: 1rem;
+      line-height: 1.65;
+    }
+    .credit {
+      margin-top: 16px;
+      color: #cfe0ff;
+      font-weight: 700;
+      letter-spacing: 0.02em;
+    }
+
+    .controls {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(150px, 1fr));
+      gap: 14px;
+    }
+
+    .control-card, .panel, .mini-card, .note-card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      box-shadow: var(--shadow);
+      border-radius: var(--radius);
+    }
+
+    .control-card {
+      padding: 14px 14px 12px;
+      min-height: 118px;
+    }
+    .control-card label {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 0.92rem;
+      color: #d8e7ff;
+      margin-bottom: 10px;
+      gap: 10px;
+    }
+    .control-value {
+      color: var(--accent-2);
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+    }
+    input[type="range"] {
+      width: 100%;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+    .control-hint {
+      color: var(--muted);
+      font-size: 0.8rem;
+      line-height: 1.4;
+      margin-top: 10px;
+    }
+
+    .action-row {
+      margin-top: 18px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+    }
+    button {
+      border: 0;
+      border-radius: 14px;
+      padding: 13px 18px;
+      font-size: 0.96rem;
+      font-weight: 700;
+      cursor: pointer;
+      color: #06101d;
+      background: linear-gradient(135deg, #7cf29a, #5dd6ff);
+      box-shadow: 0 12px 28px rgba(22, 185, 165, 0.26);
+      transition: transform 0.18s ease, box-shadow 0.18s ease, opacity 0.18s ease;
+    }
+    button:hover { transform: translateY(-1px); }
+    button.secondary {
+      color: var(--text);
+      background: rgba(255,255,255,0.08);
+      box-shadow: none;
+      border: 1px solid rgba(255,255,255,0.08);
+    }
+    .status-pill {
+      padding: 12px 15px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.08);
+      color: var(--muted);
+      font-size: 0.92rem;
+    }
+
+    .metrics {
+      margin-top: 20px;
+      display: grid;
+      grid-template-columns: repeat(6, minmax(130px, 1fr));
+      gap: 12px;
+    }
+    .mini-card {
+      padding: 15px;
+      background: linear-gradient(180deg, rgba(11,22,40,0.92), rgba(9,18,32,0.88));
+    }
+    .mini-card .kicker {
+      font-size: 0.78rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 8px;
+    }
+    .mini-card .big {
+      font-size: 1.52rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .mini-card .sub {
+      margin-top: 8px;
+      font-size: 0.83rem;
+      color: var(--muted);
+      line-height: 1.45;
+    }
+
+    .main-sim {
+      margin-top: 22px;
+      padding: 18px;
+    }
+    .sim-header {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .sim-header h2, .graph-section h2, .info-section h2 {
+      margin: 0;
+      font-size: 1.35rem;
+    }
+    .sim-header p, .graph-section p, .info-section p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      line-height: 1.5;
+    }
+
+    .lanes {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+
+    .lane {
+      background: linear-gradient(180deg, rgba(12,24,41,0.94), rgba(8,18,32,0.92));
+      border: 1px solid var(--border);
+      border-radius: 24px;
+      padding: 18px;
+      position: relative;
+      overflow: hidden;
+      min-height: 540px;
+    }
+    .lane.normal { box-shadow: inset 0 0 0 1px rgba(112,183,255,0.08); }
+    .lane.spark  { box-shadow: inset 0 0 0 1px rgba(255,179,71,0.10); }
+
+    .lane-title {
+      display: flex;
+      justify-content: space-between;
+      gap: 14px;
+      align-items: flex-start;
+      margin-bottom: 14px;
+    }
+    .lane-title h3 {
+      margin: 0;
+      font-size: 1.18rem;
+    }
+    .lane-title p {
+      margin: 6px 0 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+      max-width: 540px;
+    }
+
+    .badge {
+      padding: 8px 12px;
+      border-radius: 999px;
+      font-size: 0.82rem;
+      font-weight: 700;
+      letter-spacing: 0.03em;
+      white-space: nowrap;
+    }
+    .badge.normal { background: rgba(112,183,255,0.14); color: #bcdcff; }
+    .badge.spark  { background: rgba(255,179,71,0.18); color: #ffd9a5; }
+
+    .pipeline {
+      position: relative;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 12px;
+      margin-bottom: 16px;
+      min-height: 124px;
+    }
+    .spark .pipeline { grid-template-columns: repeat(4, 1fr); }
+
+    .stage-box {
+      position: relative;
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      padding: 14px;
+      min-height: 98px;
+    }
+    .stage-box .stage-name {
+      font-size: 0.84rem;
+      text-transform: uppercase;
+      color: var(--muted);
+      letter-spacing: 0.08em;
+      margin-bottom: 8px;
+    }
+    .stage-box strong {
+      display: block;
+      font-size: 1rem;
+      margin-bottom: 6px;
+    }
+    .stage-box small {
+      display: block;
+      color: var(--muted);
+      line-height: 1.45;
+      font-size: 0.82rem;
+    }
+
+    .connector {
+      position: absolute;
+      height: 4px;
+      border-radius: 999px;
+      background: linear-gradient(90deg, rgba(255,255,255,0.04), rgba(255,255,255,0.12), rgba(255,255,255,0.04));
+      overflow: hidden;
+      z-index: 0;
+      pointer-events: none;
+    }
+    .connector::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      width: 45%;
+      background: linear-gradient(90deg, transparent, rgba(255,255,255,0.45), transparent);
+      animation: flow 1.5s linear infinite;
+      opacity: 0;
+    }
+    .running .connector::after { opacity: 1; }
+    @keyframes flow {
+      from { transform: translateX(-120%); }
+      to   { transform: translateX(280%); }
+    }
+
+    .queue-strip {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 7px;
+      padding: 12px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.035);
+      border: 1px solid rgba(255,255,255,0.06);
+      min-height: 64px;
+      align-content: flex-start;
+      margin-bottom: 16px;
+    }
+    .chip {
+      min-width: 24px;
+      height: 24px;
+      padding: 0 8px;
+      border-radius: 999px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.72rem;
+      font-weight: 700;
+      color: #04111f;
+      box-shadow: 0 6px 16px rgba(0,0,0,0.22);
+      animation: pulse 1.1s ease-in-out infinite;
+      font-variant-numeric: tabular-nums;
+    }
+    .chip.normal { background: linear-gradient(135deg, #9dc9ff, #70b7ff); }
+    .chip.spark { background: linear-gradient(135deg, #ffd089, #ffb347); }
+    .chip.done {
+      animation: none;
+      opacity: 0.32;
+      filter: grayscale(0.3);
+    }
+    @keyframes pulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.06); }
+    }
+
+    .workers-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+    }
+    .worker-card {
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.08);
+      border-radius: 18px;
+      padding: 12px;
+      min-height: 122px;
+      position: relative;
+      overflow: hidden;
+    }
+    .worker-card h4 {
+      margin: 0 0 8px;
+      font-size: 0.96rem;
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+    }
+    .worker-card .small-tag {
+      color: var(--muted);
+      font-size: 0.76rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .slot-row {
+      display: grid;
+      gap: 8px;
+    }
+    .slot {
+      border-radius: 14px;
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.06);
+      padding: 8px;
+    }
+    .slot-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 10px;
+      font-size: 0.82rem;
+      color: #d7e3f8;
+      margin-bottom: 6px;
+      min-height: 22px;
+    }
+    .slot-head .muted { color: var(--muted); }
+    .progress {
+      height: 9px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.08);
+      overflow: hidden;
+    }
+    .progress > span {
+      display: block;
+      height: 100%;
+      width: 0%;
+      border-radius: inherit;
+      transition: width 0.08s linear;
+    }
+    .normal .progress > span { background: linear-gradient(90deg, #70b7ff, #9dd0ff); }
+    .spark .progress > span { background: linear-gradient(90deg, #ffb347, #ffd089); }
+
+    .lane-footer {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 10px;
+      margin-top: 16px;
+    }
+    .stat-box {
+      padding: 12px;
+      background: rgba(255,255,255,0.04);
+      border-radius: 16px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    .stat-box .label {
+      color: var(--muted);
+      font-size: 0.76rem;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 7px;
+    }
+    .stat-box .value {
+      font-size: 1.08rem;
+      font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+
+    .graph-section {
+      margin-top: 22px;
+      padding: 20px;
+    }
+    .chart-stack {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 18px;
+      margin-top: 16px;
+    }
+    .chart-card {
+      border-radius: 22px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      padding: 16px;
+    }
+    .chart-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 12px;
+      align-items: center;
+      margin-bottom: 12px;
+      flex-wrap: wrap;
+    }
+    .legend {
+      display: flex;
+      gap: 14px;
+      flex-wrap: wrap;
+      color: var(--muted);
+      font-size: 0.86rem;
+    }
+    .legend span {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .legend i {
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+    canvas {
+      width: 100%;
+      height: 320px;
+      display: block;
+      background: linear-gradient(180deg, rgba(10,16,29,0.55), rgba(8,14,25,0.8));
+      border-radius: 18px;
+      border: 1px solid rgba(255,255,255,0.06);
+    }
+    #barChart { height: 260px; }
+
+    .results-table-wrap {
+      overflow-x: auto;
+      margin-top: 14px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      min-width: 860px;
+      font-size: 0.95rem;
+      color: #dce9ff;
+    }
+    th, td {
+      padding: 12px 12px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      text-align: left;
+      font-variant-numeric: tabular-nums;
+    }
+    th {
+      color: var(--muted);
+      font-size: 0.82rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      background: rgba(255,255,255,0.035);
+      position: sticky;
+      top: 0;
+    }
+
+    .info-section {
+      margin-top: 22px;
+      display: grid;
+      grid-template-columns: 1.15fr 0.95fr;
+      gap: 16px;
+    }
+    .note-card {
+      padding: 20px;
+    }
+    .formula {
+      margin-top: 16px;
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      color: #dff7ff;
+      line-height: 1.75;
+      white-space: pre-wrap;
+    }
+    .bullet-list {
+      margin: 14px 0 0;
+      padding-left: 18px;
+      color: var(--muted);
+      line-height: 1.7;
+    }
+    .bullet-list li + li { margin-top: 8px; }
+    .accent-normal { color: #a8d7ff; font-weight: 700; }
+    .accent-spark { color: #ffd39c; font-weight: 700; }
+
+    .footer-note {
+      margin-top: 18px;
+      padding: 16px 18px;
+      border-radius: 16px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      color: var(--muted);
+      line-height: 1.65;
+    }
+
+    @media (max-width: 1260px) {
+      .controls { grid-template-columns: repeat(3, minmax(160px, 1fr)); }
+      .metrics { grid-template-columns: repeat(3, minmax(150px, 1fr)); }
+      .info-section { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 960px) {
+      .lanes { grid-template-columns: 1fr; }
+      .controls { grid-template-columns: repeat(2, minmax(160px, 1fr)); }
+      .metrics { grid-template-columns: repeat(2, minmax(150px, 1fr)); }
+      .workers-grid { grid-template-columns: 1fr; }
+    }
+    @media (max-width: 640px) {
+      .shell { padding: 18px 12px 30px; }
+      .hero, .main-sim, .graph-section, .note-card { padding: 16px; }
+      .controls, .metrics { grid-template-columns: 1fr; }
+      .lane-footer { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+      table { min-width: 720px; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <section class="hero">
+      <div class="eyebrow">Interactive Big Data Simulation</div>
+      <h1>Traditional Parallel Processing vs Apache Spark in Docker</h1>
+      <p>
+        This simulation compares a regular parallel processing model with fixed worker threads against an Apache Spark style model running inside Docker worker containers. The goal is to show why Spark becomes powerful on large or skewed workloads: it partitions data, dynamically schedules work, tolerates stragglers better, and coordinates distributed execution across executors.
+      </p>
+      <div class="credit">Created by: Bob Mathew Sunga</div>
+
+      <div class="controls">
+        <div class="control-card">
+          <label>Records / Work Units <span class="control-value" id="tasksVal">96</span></label>
+          <input id="tasks" type="range" min="24" max="300" step="12" value="96" />
+          <div class="control-hint">Higher values represent larger datasets or more partitions of work.</div>
+        </div>
+        <div class="control-card">
+          <label>Work Skew <span class="control-value" id="skewVal">35%</span></label>
+          <input id="skew" type="range" min="0" max="90" step="5" value="35" />
+          <div class="control-hint">High skew means some chunks are much heavier, creating stragglers.</div>
+        </div>
+        <div class="control-card">
+          <label>Traditional Threads <span class="control-value" id="threadsVal">4</span></label>
+          <input id="threads" type="range" min="2" max="8" step="1" value="4" />
+          <div class="control-hint">These simulate worker threads in a regular parallel program.</div>
+        </div>
+        <div class="control-card">
+          <label>Docker Workers <span class="control-value" id="containersVal">3</span></label>
+          <input id="containers" type="range" min="2" max="6" step="1" value="3" />
+          <div class="control-hint">Each Docker worker contains one or more Spark executors.</div>
+        </div>
+        <div class="control-card">
+          <label>Executors per Worker <span class="control-value" id="execVal">2</span></label>
+          <input id="executors" type="range" min="1" max="4" step="1" value="2" />
+          <div class="control-hint">More executors mean more parallel slots for Spark tasks.</div>
+        </div>
+        <div class="control-card">
+          <label>Base Spark Partitions <span class="control-value" id="partsVal">18</span></label>
+          <input id="partitions" type="range" min="6" max="48" step="2" value="18" />
+          <div class="control-hint">Spark works on partitions. Spark can auto-scale the effective partition count upward as workload grows.</div>
+        </div>
+      </div>
+
+      <div class="action-row">
+        <div class="control-card" style="min-height:auto; padding:12px 14px; flex:1 1 280px; max-width:380px;">
+          <label>Animation Speed <span class="control-value" id="speedVal">1.0x</span></label>
+          <input id="speed" type="range" min="0.25" max="4" step="0.25" value="1" />
+          <div class="control-hint">A clear time reference is kept in simulated seconds on the dashboard below.</div>
+        </div>
+        <button id="startBtn">Start / Pause</button>
+        <button id="resetBtn" class="secondary">Reset</button>
+        <button id="randomBtn" class="secondary">Randomize Workload</button>
+        <div class="status-pill" id="statusText">Ready. Configure the workload, then press Start.</div>
+      </div>
+
+      <div class="metrics">
+        <div class="mini-card">
+          <div class="kicker">Simulated Time</div>
+          <div class="big" id="simTime">0.00 s</div>
+          <div class="sub">Main time reference used across the simulation and the graphs.</div>
+        </div>
+        <div class="mini-card">
+          <div class="kicker">Traditional ETA</div>
+          <div class="big" id="normalEta">-</div>
+          <div class="sub">Predicted completion from current trajectory.</div>
+        </div>
+        <div class="mini-card">
+          <div class="kicker">Spark ETA</div>
+          <div class="big" id="sparkEta">-</div>
+          <div class="sub">Includes container startup and partition scheduling.</div>
+        </div>
+        <div class="mini-card">
+          <div class="kicker">Current Leader</div>
+          <div class="big" id="leader">Tie</div>
+          <div class="sub">Who is further ahead right now in completed work.</div>
+        </div>
+        <div class="mini-card">
+          <div class="kicker">Expected Winner</div>
+          <div class="big" id="expectedWinner">-</div>
+          <div class="sub">Final time forecast using the present workload shape.</div>
+        </div>
+        <div class="mini-card">
+          <div class="kicker">Concept Hook</div>
+          <div class="big">Dynamic Scheduling</div>
+          <div class="sub">Spark tends to handle load imbalance better than fixed assignment.</div>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel main-sim">
+      <div class="sim-header">
+        <div>
+          <h2>Live Architecture and Processing Flow</h2>
+          <p>
+            The main simulation occupies the full width. The graphs are placed below for easier reading. Watch how the traditional system statically hands out chunks to threads, while Spark in Docker assigns partitions across executors inside worker containers.
+          </p>
+        </div>
+      </div>
+
+      <div class="lanes">
+        <article class="lane normal" id="normalLane">
+          <div class="lane-title">
+            <div>
+              <h3>Traditional Parallel Processing</h3>
+              <p>Lower startup cost, but work is assigned in a more fixed way. If one thread gets heavier chunks, the entire system waits for that straggler.</p>
+            </div>
+            <div class="badge normal">Controller → Threads</div>
+          </div>
+          <div class="pipeline" id="normalPipeline">
+            <div class="stage-box"><div class="stage-name">Stage 1</div><strong>Input Queue</strong><small>Work units are loaded into a single queue.</small></div>
+            <div class="stage-box"><div class="stage-name">Stage 2</div><strong>Controller</strong><small>Fixed chunk assignment to worker threads.</small></div>
+            <div class="stage-box"><div class="stage-name">Stage 3</div><strong>Merge</strong><small>Final join after all threads finish.</small></div>
+          </div>
+          <div class="queue-strip" id="normalQueue"></div>
+          <div class="workers-grid" id="normalWorkers"></div>
+          <div class="lane-footer">
+            <div class="stat-box"><div class="label">Completed</div><div class="value" id="normalCompleted">0 / 96</div></div>
+            <div class="stat-box"><div class="label">Elapsed</div><div class="value" id="normalTime">0.00 s</div></div>
+            <div class="stat-box"><div class="label">Utilization</div><div class="value" id="normalUtil">0%</div></div>
+            <div class="stat-box"><div class="label">Imbalance</div><div class="value" id="normalImbalance">0.00</div></div>
+          </div>
+        </article>
+
+        <article class="lane spark" id="sparkLane">
+          <div class="lane-title">
+            <div>
+              <h3>Apache Spark in Docker</h3>
+              <p>Higher startup and coordination cost, but partitions are dynamically scheduled across executors in Docker worker containers, reducing straggler impact on large jobs.</p>
+            </div>
+            <div class="badge spark">Driver → Master → Docker Workers</div>
+          </div>
+          <div class="pipeline" id="sparkPipeline">
+            <div class="stage-box"><div class="stage-name">Stage 1</div><strong>Driver</strong><small>Builds the job plan and stages.</small></div>
+            <div class="stage-box"><div class="stage-name">Stage 2</div><strong>Master</strong><small>Allocates worker resources.</small></div>
+            <div class="stage-box"><div class="stage-name">Stage 3</div><strong>Executors</strong><small>Run partitions in parallel.</small></div>
+            <div class="stage-box"><div class="stage-name">Stage 4</div><strong>Shuffle / Reduce</strong><small>Combines partial outputs.</small></div>
+          </div>
+          <div class="queue-strip" id="sparkQueue"></div>
+          <div class="workers-grid" id="sparkWorkers"></div>
+          <div class="lane-footer">
+            <div class="stat-box"><div class="label">Completed</div><div class="value" id="sparkCompleted">0 / 18</div></div>
+            <div class="stat-box"><div class="label">Elapsed</div><div class="value" id="sparkTime">0.00 s</div></div>
+            <div class="stat-box"><div class="label">Utilization</div><div class="value" id="sparkUtil">0%</div></div>
+            <div class="stat-box"><div class="label">Imbalance</div><div class="value" id="sparkImbalance">0.00</div></div>
+          </div>
+        </article>
+      </div>
+    </section>
+
+    <section class="panel graph-section">
+      <div>
+        <h2>Graphs and Experimental Results</h2>
+        <p>
+          The graph visualization is placed below the simulation so it has more space. The line chart shows cumulative completion over simulated time, while the bar chart and table summarize final performance metrics.
+        </p>
+      </div>
+
+      <div class="chart-stack">
+        <div class="chart-card">
+          <div class="chart-head">
+            <strong>Progress Over Time</strong>
+            <div class="legend">
+              <span><i style="background:#70b7ff"></i>Traditional Parallel</span>
+              <span><i style="background:#ffb347"></i>Apache Spark in Docker</span>
+            </div>
+          </div>
+          <canvas id="progressChart"></canvas>
+        </div>
+
+        <div class="chart-card">
+          <div class="chart-head">
+            <strong>Final Comparison Metrics</strong>
+            <div class="legend">
+              <span><i style="background:#70b7ff"></i>Traditional</span>
+              <span><i style="background:#ffb347"></i>Spark</span>
+            </div>
+          </div>
+          <canvas id="barChart"></canvas>
+          <div class="results-table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>Metric</th>
+                  <th>Traditional Parallel</th>
+                  <th>Apache Spark in Docker</th>
+                  <th>Interpretation</th>
+                </tr>
+              </thead>
+              <tbody id="resultsBody"></tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="info-section">
+      <article class="note-card">
+        <h2>Interpretation Guide</h2>
+        <p>
+          Use this as a teaching simulation, not as a hardware benchmark. It illustrates the logic of parallel scheduling and distributed execution, especially how Spark partitions work and how Docker packages the cluster environment.
+        </p>
+        <ul class="bullet-list">
+          <li><span class="accent-normal">Traditional Parallel</span> is usually good when the job is small, the machine is local, and the chunks are balanced.</li>
+          <li><span class="accent-spark">Spark in Docker</span> shines when workloads are bigger, more uneven, or need scalable orchestration across several worker containers.</li>
+          <li>Docker adds deployment isolation and portability, but it does not create extra compute power on its own. Containers still share the host resources unless distributed across multiple machines.</li>
+          <li>More Spark partitions are not always better. Too many partitions increase scheduling and shuffle overhead.</li>
+          <li>High work skew is where dynamic scheduling matters the most because it reduces idle waiting caused by one overloaded worker.</li>
+        </ul>
+        <div class="footer-note">
+          Teaching tip: try a low dataset size with low skew first, then increase both. Students can observe how startup overhead may make Spark look slower for tiny jobs, while larger and more imbalanced jobs often favor the Spark model.
+        </div>
+      </article>
+
+      <article class="note-card">
+        <h2>Compact Equations Used in the Simulation</h2>
+        <p>
+          These simplified equations are educational approximations designed to visualize behavior.
+        </p>
+        <div class="formula">Traditional Parallel:
+T_trad ≈ T_start + max(thread_load_i / thread_rate) + T_merge
+
+Imbalance_trad ≈ stdev(thread_loads) / mean(thread_loads)
+
+Utilization_trad ≈ busy_thread_time / (threads × elapsed_time)
+
+Apache Spark in Docker:
+T_spark ≈ T_container_start + T_driver_sched + max(executor_load_j / exec_rate) + T_shuffle_reduce
+
+Imbalance_spark ≈ stdev(executor_loads) / mean(executor_loads)
+
+Speedup (Spark over Traditional) ≈ T_trad / T_spark</div>
+        <ul class="bullet-list">
+          <li><strong>T_start</strong> is the ordinary program startup overhead.</li>
+          <li><strong>T_container_start</strong> models Docker worker startup and Spark initialization.</li>
+          <li><strong>T_driver_sched</strong> represents the driver and master scheduling cost.</li>
+          <li><strong>T_shuffle_reduce</strong> is the final combine stage across partitions.</li>
+          <li><strong>exec_rate</strong> and <strong>thread_rate</strong> are the effective work rates of a processing slot.</li>
+        </ul>
+      </article>
+    </section>
+  </div>
+
+  <script>
+    const $ = (id) => document.getElementById(id);
+
+    const controls = {
+      tasks: $('tasks'),
+      skew: $('skew'),
+      threads: $('threads'),
+      containers: $('containers'),
+      executors: $('executors'),
+      partitions: $('partitions'),
+      speed: $('speed')
+    };
+
+    const labels = {
+      tasks: $('tasksVal'),
+      skew: $('skewVal'),
+      threads: $('threadsVal'),
+      containers: $('containersVal'),
+      executors: $('execVal'),
+      partitions: $('partsVal'),
+      speed: $('speedVal')
+    };
+
+    const sim = {
+      running: false,
+      done: false,
+      time: 0,
+      history: [],
+      normal: null,
+      spark: null,
+      lastFrame: 0,
+      seedOffset: 0
+    };
+
+    function fmt(num, d = 2) {
+      return Number(num).toFixed(d);
+    }
+
+    function effectivePartitionsCount() {
+      const base = Number(controls.partitions.value);
+      const tasks = Number(controls.tasks.value);
+      return Math.max(base, Math.min(72, Math.ceil(tasks / 6)));
+    }
+
+    function updateLabels() {
+      labels.tasks.textContent = controls.tasks.value;
+      labels.skew.textContent = controls.skew.value + '%';
+      labels.threads.textContent = controls.threads.value;
+      labels.containers.textContent = controls.containers.value;
+      labels.executors.textContent = controls.executors.value;
+      labels.partitions.textContent = `${controls.partitions.value} → ${effectivePartitionsCount()} eff`;
+      labels.speed.textContent = Number(controls.speed.value).toFixed(2).replace(/\.00$/, '.0') + 'x';
+    }
+
+    Object.values(controls).forEach(input => input.addEventListener('input', () => {
+      updateLabels();
+      resetSimulation(false);
+    }));
+
+    $('startBtn').addEventListener('click', () => {
+      if (sim.done) resetSimulation(false);
+      sim.running = !sim.running;
+      setStatus(sim.running ? 'Running. Watch how Spark dynamically refills executor slots.' : 'Paused. You can inspect the queues and the graphs.');
+      $('normalLane').classList.toggle('running', sim.running);
+      $('sparkLane').classList.toggle('running', sim.running);
+      if (sim.running) requestAnimationFrame(loop);
+    });
+
+    $('resetBtn').addEventListener('click', () => resetSimulation(true));
+    $('randomBtn').addEventListener('click', () => {
+      sim.seedOffset += 1;
+      resetSimulation(true);
+      setStatus('Randomized. The workload shape changed while preserving the control values.');
+    });
+
+    function mulberry32(a) {
+      return function() {
+        let t = a += 0x6D2B79F5;
+        t = Math.imul(t ^ t >>> 15, t | 1);
+        t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+        return ((t ^ t >>> 14) >>> 0) / 4294967296;
+      }
+    }
+
+    function buildConnectors(pipelineEl) {
+      [...pipelineEl.querySelectorAll('.connector')].forEach(el => el.remove());
+      const boxes = [...pipelineEl.querySelectorAll('.stage-box')];
+      const hostRect = pipelineEl.getBoundingClientRect();
+      for (let i = 0; i < boxes.length - 1; i++) {
+        const a = boxes[i].getBoundingClientRect();
+        const b = boxes[i + 1].getBoundingClientRect();
+        const connector = document.createElement('div');
+        connector.className = 'connector';
+        const left = a.right - hostRect.left + 6;
+        const width = Math.max(18, b.left - a.right - 12);
+        const top = a.top - hostRect.top + a.height / 2;
+        connector.style.left = left + 'px';
+        connector.style.top = top + 'px';
+        connector.style.width = width + 'px';
+        pipelineEl.appendChild(connector);
+      }
+    }
+
+    function groupIntoPartitions(tasks, n) {
+      const parts = Array.from({ length: n }, () => []);
+      tasks.forEach((task, idx) => parts[idx % n].push(task));
+      return parts.map((group, i) => ({
+        id: i + 1,
+        work: group.reduce((a, b) => a + b.work, 0),
+        items: group.length
+      })).filter(p => p.work > 0);
+    }
+
+    function createWorkload() {
+      const taskCount = Number(controls.tasks.value);
+      const skew = Number(controls.skew.value) / 100;
+      const rng = mulberry32(1337 + taskCount * 31 + skew * 1000 + sim.seedOffset * 97);
+      const tasks = [];
+      for (let i = 0; i < taskCount; i++) {
+        const heavyBias = rng() < 0.18 ? 1 + skew * (1.3 + rng() * 1.7) : 1 + (rng() - 0.5) * skew;
+        const wobble = 0.65 + rng() * 0.75;
+        const work = Math.max(0.55, heavyBias * wobble * 8.5);
+        tasks.push({ id: i + 1, work });
+      }
+      return tasks;
+    }
+
+    function assignStatic(tasks, threads) {
+      const queues = Array.from({ length: threads }, () => []);
+      const chunkSize = Math.ceil(tasks.length / threads);
+      for (let i = 0; i < threads; i++) {
+        queues[i] = tasks.slice(i * chunkSize, (i + 1) * chunkSize).map(task => ({ ...task, total: task.work }));
+      }
+      return queues;
+    }
+
+    function initSimulation() {
+      const tasks = createWorkload();
+      const threadCount = Number(controls.threads.value);
+      const dockerWorkers = Number(controls.containers.value);
+      const execPerWorker = Number(controls.executors.value);
+      const partCount = effectivePartitionsCount();
+
+      const staticQueues = assignStatic(tasks, threadCount);
+      const partitions = groupIntoPartitions(tasks, partCount).map(p => ({ ...p, total: p.work }));
+
+      sim.time = 0;
+      sim.done = false;
+      sim.history = [{ t: 0, normalPct: 0, sparkPct: 0 }];
+
+      sim.normal = {
+        totalItems: tasks.length,
+        totalWork: tasks.reduce((a, b) => a + b.work, 0),
+        doneItems: 0,
+        doneWork: 0,
+        startupRemaining: 0.35,
+        mergeRemaining: null,
+        elapsed: 0,
+        queues: staticQueues,
+        workers: staticQueues.map((queue, i) => ({
+          id: i + 1,
+          queue,
+          active: null,
+          busy: 0,
+          assignedWork: queue.reduce((a, b) => a + b.work, 0),
+          completed: 0
+        })),
+        ratePerWorker: 9.8,
+        finished: false,
+        finishTime: null,
+        mode: 'run'
+      };
+
+      const slots = [];
+      for (let w = 0; w < dockerWorkers; w++) {
+        const slotList = [];
+        for (let s = 0; s < execPerWorker; s++) {
+          slotList.push({
+            id: `${w + 1}-${s + 1}`,
+            active: null,
+            busy: 0,
+            assignedWork: 0,
+            completed: 0
+          });
+        }
+        slots.push({ id: w + 1, slots: slotList });
+      }
+
+      sim.spark = {
+        totalItems: partitions.length,
+        totalWork: partitions.reduce((a, b) => a + b.work, 0),
+        doneItems: 0,
+        doneWork: 0,
+        startupRemaining: 0.65 + dockerWorkers * 0.12,
+        driverRemaining: 0.32 + partCount * 0.012,
+        reduceRemaining: null,
+        elapsed: 0,
+        queue: partitions,
+        workers: slots,
+        flatSlots: slots.flatMap(w => w.slots),
+        ratePerExecutor: 8.6,
+        schedPerPartition: 0.06,
+        finished: false,
+        finishTime: null,
+        mode: 'start'
+      };
+
+      renderAll();
+      drawCharts();
+    }
+
+    function allocateNormalWork() {
+      sim.normal.workers.forEach(worker => {
+        if (!worker.active && worker.queue.length) {
+          const next = worker.queue.shift();
+          worker.active = { ...next, total: next.total || next.work };
+        }
+      });
+    }
+
+    function allocateSparkWork() {
+      sim.spark.flatSlots.forEach(slot => {
+        if (!slot.active && sim.spark.queue.length) {
+          const next = sim.spark.queue.shift();
+          slot.active = { ...next, total: next.total || next.work, sched: sim.spark.schedPerPartition };
+          slot.assignedWork += next.work;
+        }
+      });
+    }
+
+    function stepNormal(dt) {
+      const n = sim.normal;
+      if (n.finished) return;
+      n.elapsed += dt;
+      if (n.startupRemaining > 0) {
+        n.startupRemaining = Math.max(0, n.startupRemaining - dt);
+        if (n.startupRemaining === 0) allocateNormalWork();
+        return;
+      }
+
+      if (n.mergeRemaining !== null) {
+        n.mergeRemaining = Math.max(0, n.mergeRemaining - dt);
+        if (n.mergeRemaining === 0 && !n.finished) {
+          n.finished = true;
+          n.finishTime = n.elapsed;
+        }
+        return;
+      }
+
+      let anyActive = false;
+      n.workers.forEach(worker => {
+        if (!worker.active) return;
+        anyActive = true;
+        worker.busy += dt;
+        const processed = n.ratePerWorker * dt;
+        worker.active.work = Math.max(0, worker.active.work - processed);
+        n.doneWork = Math.min(n.totalWork, n.doneWork + processed);
+        if (worker.active.work <= 0) {
+          n.doneItems += 1;
+          worker.completed += 1;
+          worker.active = null;
+          if (worker.queue.length) {
+            const next = worker.queue.shift();
+            worker.active = { ...next, total: next.total || next.work };
+          }
+        }
+      });
+
+      if (!anyActive && n.workers.every(w => !w.queue.length && !w.active)) {
+        n.doneWork = n.totalWork;
+        n.mergeRemaining = 0.55 + n.workers.length * 0.08;
+      }
+    }
+
+    function stepSpark(dt) {
+      const s = sim.spark;
+      if (s.finished) return;
+      s.elapsed += dt;
+      if (s.startupRemaining > 0) {
+        s.startupRemaining = Math.max(0, s.startupRemaining - dt);
+        return;
+      }
+      if (s.driverRemaining > 0) {
+        s.driverRemaining = Math.max(0, s.driverRemaining - dt);
+        if (s.driverRemaining === 0) allocateSparkWork();
+        return;
+      }
+      if (s.reduceRemaining !== null) {
+        s.reduceRemaining = Math.max(0, s.reduceRemaining - dt);
+        if (s.reduceRemaining === 0 && !s.finished) {
+          s.finished = true;
+          s.finishTime = s.elapsed;
+        }
+        return;
+      }
+
+      let anyActive = false;
+      s.flatSlots.forEach(slot => {
+        if (!slot.active) return;
+        anyActive = true;
+        slot.busy += dt;
+        if (slot.active.sched > 0) {
+          slot.active.sched = Math.max(0, slot.active.sched - dt);
+          return;
+        }
+        const processed = s.ratePerExecutor * dt;
+        slot.active.work = Math.max(0, slot.active.work - processed);
+        s.doneWork = Math.min(s.totalWork, s.doneWork + processed);
+        if (slot.active.work <= 0) {
+          s.doneItems += 1;
+          slot.completed += 1;
+          slot.active = null;
+          if (s.queue.length) {
+            const next = s.queue.shift();
+            slot.active = { ...next, total: next.total || next.work, sched: s.schedPerPartition };
+            slot.assignedWork += next.work;
+          }
+        }
+      });
+
+      if (!anyActive && s.queue.length === 0 && s.flatSlots.every(slot => !slot.active)) {
+        s.doneWork = s.totalWork;
+        s.reduceRemaining = 0.34 + effectivePartitionsCount() * 0.018;
+      }
+    }
+
+    function computeImbalance(loads) {
+      const clean = loads.filter(v => v > 0);
+      if (!clean.length) return 0;
+      const mean = clean.reduce((a, b) => a + b, 0) / clean.length;
+      if (mean === 0) return 0;
+      const variance = clean.reduce((acc, val) => acc + Math.pow(val - mean, 2), 0) / clean.length;
+      return Math.sqrt(variance) / mean;
+    }
+
+    function estimateEta(sys, isSpark = false) {
+      if (sys.finished) return sys.finishTime;
+      const total = sys.totalWork;
+      const done = sys.doneWork;
+      const elapsed = Math.max(0.001, sys.elapsed);
+      const rate = done / elapsed;
+      if (rate <= 0.0001) return null;
+      let rem = (total - done) / rate;
+      if (isSpark) {
+        rem += Math.max(0, sys.startupRemaining || 0) + Math.max(0, sys.driverRemaining || 0) + Math.max(0, sys.reduceRemaining || 0);
+      } else {
+        rem += Math.max(0, sys.startupRemaining || 0) + Math.max(0, sys.mergeRemaining || 0);
+      }
+      return elapsed + rem;
+    }
+
+    function setStatus(text) {
+      $('statusText').textContent = text;
+    }
+
+    function renderSparkQueue() {
+      const el = $('sparkQueue');
+      el.innerHTML = '';
+      const visible = sim.spark.queue.slice(0, 18);
+      visible.forEach(part => {
+        const chip = document.createElement('div');
+        chip.className = 'chip spark';
+        chip.textContent = `P${part.id}·${part.items}`;
+        el.appendChild(chip);
+      });
+      if (sim.spark.queue.length > visible.length) {
+        const chip = document.createElement('div');
+        chip.className = 'chip spark';
+        chip.style.minWidth = '64px';
+        chip.textContent = '+' + (sim.spark.queue.length - visible.length);
+        el.appendChild(chip);
+      }
+      if (sim.spark.queue.length === 0) {
+        const chip = document.createElement('div');
+        chip.className = 'chip spark done';
+        chip.style.minWidth = '190px';
+        chip.textContent = `${sim.spark.totalItems} partitions scheduled`;
+        el.appendChild(chip);
+      }
+    }
+
+    function renderQueue(el, count, type, total, done) {
+      const pending = Math.max(0, count - done);
+      const visible = Math.min(24, pending);
+      el.innerHTML = '';
+      for (let i = 0; i < visible; i++) {
+        const chip = document.createElement('div');
+        chip.className = `chip ${type}`;
+        chip.textContent = done + i + 1;
+        el.appendChild(chip);
+      }
+      if (pending > visible) {
+        const chip = document.createElement('div');
+        chip.className = `chip ${type}`;
+        chip.style.minWidth = '56px';
+        chip.textContent = '+' + (pending - visible);
+        el.appendChild(chip);
+      }
+      if (pending === 0) {
+        const chip = document.createElement('div');
+        chip.className = `chip ${type} done`;
+        chip.style.minWidth = '140px';
+        chip.textContent = `${total} complete`;
+        el.appendChild(chip);
+      }
+    }
+
+    function renderWorkersNormal() {
+      const host = $('normalWorkers');
+      host.innerHTML = '';
+      sim.normal.workers.forEach(worker => {
+        const card = document.createElement('div');
+        card.className = 'worker-card';
+        const pct = worker.active ? 100 * (1 - worker.active.work / worker.active.total) : 0;
+        card.innerHTML = `
+          <h4><span>Thread ${worker.id}</span><span class="small-tag">${worker.completed} done</span></h4>
+          <div class="slot-row">
+            <div class="slot">
+              <div class="slot-head">
+                <span>${worker.active ? `Task ${worker.active.id}` : 'Idle'}</span>
+                <span class="muted">Queue left: ${worker.queue.length}</span>
+              </div>
+              <div class="progress"><span style="width:${pct}%"></span></div>
+            </div>
+          </div>
+        `;
+        host.appendChild(card);
+      });
+    }
+
+    function renderWorkersSpark() {
+      const host = $('sparkWorkers');
+      host.innerHTML = '';
+      sim.spark.workers.forEach(worker => {
+        const card = document.createElement('div');
+        card.className = 'worker-card';
+        const inner = worker.slots.map(slot => {
+          const pct = slot.active ? 100 * (1 - slot.active.work / slot.active.total) : 0;
+          return `
+            <div class="slot">
+              <div class="slot-head">
+                <span>${slot.active ? `Partition ${slot.active.id}` : 'Idle'}</span>
+                <span class="muted">Exec ${slot.id}</span>
+              </div>
+              <div class="progress"><span style="width:${pct}%"></span></div>
+            </div>
+          `;
+        }).join('');
+        card.innerHTML = `
+          <h4><span>Docker Worker ${worker.id}</span><span class="small-tag">${worker.slots.reduce((a,b) => a + b.completed, 0)} partitions done</span></h4>
+          <div class="slot-row">${inner}</div>
+        `;
+        host.appendChild(card);
+      });
+    }
+
+    function renderMetrics() {
+      $('simTime').textContent = fmt(sim.time) + ' s';
+
+      $('normalCompleted').textContent = `${Math.min(sim.normal.doneItems, sim.normal.totalItems)} / ${sim.normal.totalItems}`;
+      const sparkApproxRecords = Math.round((sim.spark.doneWork / Math.max(1, sim.spark.totalWork)) * Number(controls.tasks.value));
+      $('sparkCompleted').innerHTML = `${Math.min(sim.spark.doneItems, sim.spark.totalItems)} / ${sim.spark.totalItems} partitions<div style="font-size:0.78rem;color:var(--muted);margin-top:4px">~${sparkApproxRecords} / ${controls.tasks.value} records represented</div>`;
+      $('normalTime').textContent = fmt(sim.normal.elapsed) + ' s';
+      $('sparkTime').textContent = fmt(sim.spark.elapsed) + ' s';
+
+      const normalUtil = sim.normal.elapsed > 0 ? (sim.normal.workers.reduce((a,b) => a + b.busy, 0) / (sim.normal.workers.length * sim.normal.elapsed)) * 100 : 0;
+      const sparkSlots = sim.spark.flatSlots.length;
+      const sparkUtil = sim.spark.elapsed > 0 ? (sim.spark.flatSlots.reduce((a,b) => a + b.busy, 0) / (sparkSlots * sim.spark.elapsed)) * 100 : 0;
+      $('normalUtil').textContent = fmt(normalUtil, 1) + '%';
+      $('sparkUtil').textContent = fmt(sparkUtil, 1) + '%';
+
+      const nImb = computeImbalance(sim.normal.workers.map(w => w.assignedWork));
+      const sImb = computeImbalance(sim.spark.flatSlots.map(s => s.assignedWork));
+      $('normalImbalance').textContent = fmt(nImb);
+      $('sparkImbalance').textContent = fmt(sImb);
+
+      const nEta = estimateEta(sim.normal, false);
+      const sEta = estimateEta(sim.spark, true);
+      $('normalEta').textContent = nEta ? fmt(nEta) + ' s' : '-';
+      $('sparkEta').textContent = sEta ? fmt(sEta) + ' s' : '-';
+      if (nEta && sEta) {
+        $('expectedWinner').textContent = nEta < sEta ? 'Traditional' : (sEta < nEta ? 'Spark' : 'Tie');
+      } else {
+        $('expectedWinner').textContent = '-';
+      }
+
+      const nPct = sim.normal.totalWork ? sim.normal.doneWork / sim.normal.totalWork : 0;
+      const sPct = sim.spark.totalWork ? sim.spark.doneWork / sim.spark.totalWork : 0;
+      $('leader').textContent = Math.abs(nPct - sPct) < 0.015 ? 'Tie' : (nPct > sPct ? 'Traditional' : 'Spark');
+    }
+
+    function renderResultsTable() {
+      const body = $('resultsBody');
+      const nTime = sim.normal.finishTime || estimateEta(sim.normal, false) || 0;
+      const sTime = sim.spark.finishTime || estimateEta(sim.spark, true) || 0;
+      const nUtil = sim.normal.elapsed > 0 ? (sim.normal.workers.reduce((a,b) => a + b.busy, 0) / (sim.normal.workers.length * sim.normal.elapsed)) * 100 : 0;
+      const sUtil = sim.spark.elapsed > 0 ? (sim.spark.flatSlots.reduce((a,b) => a + b.busy, 0) / (sim.spark.flatSlots.length * sim.spark.elapsed)) * 100 : 0;
+      const nImb = computeImbalance(sim.normal.workers.map(w => w.assignedWork));
+      const sImb = computeImbalance(sim.spark.flatSlots.map(s => s.assignedWork));
+      const speedup = sTime > 0 ? nTime / sTime : 0;
+      const nThr = nTime > 0 ? sim.normal.totalWork / nTime : 0;
+      const sThr = sTime > 0 ? sim.spark.totalWork / sTime : 0;
+
+      const rows = [
+        ['Completion time', `${fmt(nTime)} s`, `${fmt(sTime)} s`, sTime < nTime ? 'Spark is faster under the current workload.' : (nTime < sTime ? 'Traditional is faster for this configuration.' : 'Both are similar.')],
+        ['Throughput', `${fmt(nThr)} work/s`, `${fmt(sThr)} work/s`, 'Higher means more work completed per simulated second.'],
+        ['Utilization', `${fmt(nUtil,1)}%`, `${fmt(sUtil,1)}%`, 'Shows how busy the workers stay during the run.'],
+        ['Load imbalance', `${fmt(nImb)}`, `${fmt(sImb)}`, 'Lower imbalance usually means fewer stragglers and less idle waiting.'],
+        ['Spark speedup', '-', `${fmt(speedup)}×`, 'Values above 1.0 mean Spark outperformed traditional parallel for this scenario.'],
+        ['Parallel slots', `${sim.normal.workers.length} threads`, `${sim.spark.flatSlots.length} executors`, 'Spark can expose more scheduling flexibility through partitions and executor slots.']
+      ];
+
+      body.innerHTML = rows.map(row => `
+        <tr>
+          <td>${row[0]}</td>
+          <td>${row[1]}</td>
+          <td>${row[2]}</td>
+          <td>${row[3]}</td>
+        </tr>
+      `).join('');
+    }
+
+    function renderAll() {
+      renderQueue($('normalQueue'), Math.max(0, sim.normal.totalItems - sim.normal.doneItems), 'normal', sim.normal.totalItems, sim.normal.doneItems);
+      renderSparkQueue();
+      renderWorkersNormal();
+      renderWorkersSpark();
+      renderMetrics();
+      renderResultsTable();
+    }
+
+    function drawAxes(ctx, rect, yLabelFn, xMax, yMax, hLines = 5) {
+      const { x, y, w, h } = rect;
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(215,229,255,0.68)';
+      ctx.textAlign = 'right';
+      ctx.textBaseline = 'middle';
+      for (let i = 0; i <= hLines; i++) {
+        const yy = y + h - (h / hLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(x, yy);
+        ctx.lineTo(x + w, yy);
+        ctx.stroke();
+        const val = yMax * (i / hLines);
+        ctx.fillText(yLabelFn(val), x - 8, yy);
+      }
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'top';
+      const xLines = 6;
+      for (let i = 0; i <= xLines; i++) {
+        const xx = x + (w / xLines) * i;
+        ctx.beginPath();
+        ctx.moveTo(xx, y);
+        ctx.lineTo(xx, y + h);
+        ctx.stroke();
+        const val = xMax * (i / xLines);
+        ctx.fillText(fmt(val, 1) + 's', xx, y + h + 8);
+      }
+    }
+
+    function drawProgressChart() {
+      const canvas = $('progressChart');
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const pad = { left: 56, right: 20, top: 20, bottom: 40 };
+      const chart = { x: pad.left, y: pad.top, w: rect.width - pad.left - pad.right, h: rect.height - pad.top - pad.bottom };
+      const xMax = Math.max(8, sim.history[sim.history.length - 1]?.t || 1, (sim.normal.finishTime || 0), (sim.spark.finishTime || 0));
+      drawAxes(ctx, chart, (v) => fmt(v * 100, 0) + '%', xMax, 1, 5);
+
+      function drawLine(key, color) {
+        if (sim.history.length < 2) return;
+        ctx.beginPath();
+        ctx.lineWidth = 3;
+        ctx.strokeStyle = color;
+        sim.history.forEach((point, idx) => {
+          const px = chart.x + (point.t / xMax) * chart.w;
+          const py = chart.y + chart.h - point[key] * chart.h;
+          if (idx === 0) ctx.moveTo(px, py); else ctx.lineTo(px, py);
+        });
+        ctx.stroke();
+      }
+
+      drawLine('normalPct', '#70b7ff');
+      drawLine('sparkPct', '#ffb347');
+
+      ctx.fillStyle = 'rgba(231,240,255,0.9)';
+      ctx.font = '700 12px Inter, sans-serif';
+      ctx.fillText('Completion %', 100, 10);
+    }
+
+    function drawBarChart() {
+      const canvas = $('barChart');
+      const ratio = window.devicePixelRatio || 1;
+      const rect = canvas.getBoundingClientRect();
+      canvas.width = rect.width * ratio;
+      canvas.height = rect.height * ratio;
+      const ctx = canvas.getContext('2d');
+      ctx.scale(ratio, ratio);
+      ctx.clearRect(0, 0, rect.width, rect.height);
+
+      const pad = { left: 58, right: 20, top: 24, bottom: 34 };
+      const chart = { x: pad.left, y: pad.top, w: rect.width - pad.left - pad.right, h: rect.height - pad.top - pad.bottom };
+      const nTime = sim.normal.finishTime || estimateEta(sim.normal, false) || 0;
+      const sTime = sim.spark.finishTime || estimateEta(sim.spark, true) || 0;
+      const nUtil = sim.normal.elapsed > 0 ? (sim.normal.workers.reduce((a,b) => a + b.busy, 0) / (sim.normal.workers.length * sim.normal.elapsed)) * 100 : 0;
+      const sUtil = sim.spark.elapsed > 0 ? (sim.spark.flatSlots.reduce((a,b) => a + b.busy, 0) / (sim.spark.flatSlots.length * sim.spark.elapsed)) * 100 : 0;
+      const nImb = computeImbalance(sim.normal.workers.map(w => w.assignedWork));
+      const sImb = computeImbalance(sim.spark.flatSlots.map(s => s.assignedWork));
+      const metrics = [
+        { label: 'Time', normal: nTime, spark: sTime, max: Math.max(nTime, sTime, 1), suffix: 's' },
+        { label: 'Util', normal: nUtil, spark: sUtil, max: 100, suffix: '%' },
+        { label: 'Imbal', normal: nImb, spark: sImb, max: Math.max(nImb, sImb, 1), suffix: '' }
+      ];
+
+      ctx.strokeStyle = 'rgba(255,255,255,0.08)';
+      ctx.lineWidth = 1;
+      ctx.font = '12px Inter, sans-serif';
+      ctx.fillStyle = 'rgba(215,229,255,0.68)';
+      const lines = 4;
+      for (let i = 0; i <= lines; i++) {
+        const yy = chart.y + chart.h - (chart.h / lines) * i;
+        ctx.beginPath();
+        ctx.moveTo(chart.x, yy);
+        ctx.lineTo(chart.x + chart.w, yy);
+        ctx.stroke();
+      }
+
+      const groupW = chart.w / metrics.length;
+      metrics.forEach((m, idx) => {
+        const groupX = chart.x + idx * groupW;
+        const barW = Math.min(52, groupW * 0.28);
+        const gap = 16;
+        const nH = (m.normal / m.max) * (chart.h - 18);
+        const sH = (m.spark / m.max) * (chart.h - 18);
+
+        ctx.fillStyle = '#70b7ff';
+        ctx.fillRect(groupX + groupW / 2 - barW - gap / 2, chart.y + chart.h - nH, barW, nH);
+        ctx.fillStyle = '#ffb347';
+        ctx.fillRect(groupX + groupW / 2 + gap / 2, chart.y + chart.h - sH, barW, sH);
+
+        ctx.fillStyle = 'rgba(231,240,255,0.92)';
+        ctx.textAlign = 'center';
+        ctx.fillText(m.label, groupX + groupW / 2, chart.y + chart.h + 18);
+        ctx.fillText(fmt(m.normal, m.suffix === '%' ? 1 : 2) + m.suffix, groupX + groupW / 2 - barW / 2 - gap / 2, chart.y + chart.h - nH - 8);
+        ctx.fillText(fmt(m.spark, m.suffix === '%' ? 1 : 2) + m.suffix, groupX + groupW / 2 + barW / 2 + gap / 2, chart.y + chart.h - sH - 8);
+      });
+    }
+
+    function drawCharts() {
+      drawProgressChart();
+      drawBarChart();
+    }
+
+    function loop(ts) {
+      if (!sim.running) return;
+      if (!sim.lastFrame) sim.lastFrame = ts;
+      const rawDt = Math.min(32, ts - sim.lastFrame) / 1000;
+      sim.lastFrame = ts;
+      const dt = rawDt * Number(controls.speed.value);
+      sim.time += dt;
+
+      stepNormal(dt);
+      stepSpark(dt);
+      sim.history.push({
+        t: sim.time,
+        normalPct: sim.normal.totalWork ? Math.min(1, sim.normal.doneWork / sim.normal.totalWork) : 0,
+        sparkPct: sim.spark.totalWork ? Math.min(1, sim.spark.doneWork / sim.spark.totalWork) : 0
+      });
+      if (sim.history.length > 600) sim.history.shift();
+
+      renderAll();
+      drawCharts();
+
+      if (sim.normal.finished && sim.spark.finished) {
+        sim.running = false;
+        sim.done = true;
+        $('normalLane').classList.remove('running');
+        $('sparkLane').classList.remove('running');
+        const diff = sim.normal.finishTime - sim.spark.finishTime;
+        if (Math.abs(diff) < 0.15) {
+          setStatus('Run complete. The two systems finished at nearly the same simulated time.');
+        } else if (diff > 0) {
+          setStatus(`Run complete. Spark finished ${fmt(diff)} simulated seconds faster.`);
+        } else {
+          setStatus(`Run complete. Traditional parallel finished ${fmt(-diff)} simulated seconds faster.`);
+        }
+        return;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    function resetSimulation(showStatus = true) {
+      sim.running = false;
+      sim.done = false;
+      sim.lastFrame = 0;
+      $('normalLane').classList.remove('running');
+      $('sparkLane').classList.remove('running');
+      initSimulation();
+      if (showStatus) setStatus('Reset complete. Press Start to run the comparison again.');
+    }
+
+    function init() {
+      updateLabels();
+      initSimulation();
+      buildConnectors($('normalPipeline'));
+      buildConnectors($('sparkPipeline'));
+      window.addEventListener('resize', () => {
+        buildConnectors($('normalPipeline'));
+        buildConnectors($('sparkPipeline'));
+        drawCharts();
+      });
+      drawCharts();
+    }
+
+    init();
+  </script>
+</body>
+</html>
